@@ -1,29 +1,32 @@
-import socket
-import threading
+import asyncio
 
 
-def handle_connection(connection):
+async def handle_connection(reader, writer):
     try:
         while True:
-            data = connection.recv(1024)
+            data = await reader.read(1024)
             if not data:
                 break
 
-            connection.sendall(b"+PONG\r\n")
-    except ConnectionError as e:
-        print(e)
+            writer.write(b"+PONG\r\n")
+            await writer.drain()
+    except ConnectionError as err:
+        print(err)
     finally:
-        connection.close()
+        writer.close()
+        await writer.wait_closed()
 
 
-def main():
+async def main():
+    server = await asyncio.start_server(
+        handle_connection,
+        "localhost",
+        6379,
+    )
 
-    with socket.create_server(("localhost", 6379), reuse_port=True) as server_socket:
-        while True:
-            connection, _ = server_socket.accept()
-            thread = threading.Thread(target=handle_connection, args=(connection,))
-            thread.start()
+    async with server:
+        await server.serve_forever()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
